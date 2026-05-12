@@ -1,0 +1,30 @@
+version: 0.2
+
+phases:
+  install:
+    commands:
+      - echo Installing frontend...
+      - cd frontend
+      - npm install
+      - cd ..
+      - echo Installing backend...
+      - cd backend
+      - npm install
+      - cd ..
+
+  build:
+    commands:
+      - echo Building frontend...
+      - cd frontend
+      - npm run build
+      - cd ..
+      - echo Building backend...
+      - cd backend
+      - npm run build || true
+      - cd ..
+
+artifacts:
+  files:
+    - '**/*'
+  base-directory: frontend/dist
+  discard-paths: no
