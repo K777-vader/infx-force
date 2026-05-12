@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Infx Force | Minimal CRM</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 font-sans">
+    <nav class="bg-blue-600 text-white p-4 flex justify-between items-center shadow-lg">
+        <h1 class="text-2xl font-bold uppercase tracking-wider">Infx Force</h1>
+        <div id="auth-status" class="text-sm"></div>
+    </nav>
+
+    <main class="p-8 max-w-6xl mx-auto">
+        <!-- Activation Section -->
+        <section id="activation-area" class="bg-white p-6 rounded-lg shadow-md mb-8">
+            <h2 class="text-xl font-semibold mb-4">Activate License</h2>
+            <div class="flex gap-4">
+                <input id="email" type="email" placeholder="Email" class="border p-2 rounded w-full">
+                <input id="license" type="text" placeholder="Gumroad License Key" class="border p-2 rounded w-full">
+                <button onclick="activate()" class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700">Activate</button>
+            </div>
+        </section>
+
+        <!-- Dashboard (Hidden until activated) -->
+        <div id="dashboard" class="hidden space-y-8">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Contacts -->
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-semibold">Contacts</h2>
+                        <button onclick="showContactModal()" class="text-blue-600 text-sm font-bold">+ Add Contact</button>
+                    </div>
+                    <ul id="contact-list" class="divide-y"></ul>
+                </div>
+                <!-- Deals -->
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-semibold">Deals</h2>
+                        <button onclick="showDealModal()" class="text-blue-600 text-sm font-bold">+ Add Deal</button>
+                    </div>
+                    <ul id="deal-list" class="divide-y"></ul>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modals (Hidden) -->
+    <div id="modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center">
+        <div class="bg-white p-6 rounded-lg w-96">
+            <h3 id="modal-title" class="text-lg font-bold mb-4"></h3>
+            <div id="modal-body" class="space-y-4"></div>
+            <div class="mt-6 flex justify-end gap-2">
+                <button onclick="closeModal()" class="px-4 py-2 text-gray-500">Cancel</button>
+                <button id="modal-save" class="bg-blue-600 text-white px-4 py-2 rounded">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:3000/api';
+        let currentLicense = '';
+
+        async function activate() {
+            const email = document.getElementById('email').value;
+            const license_key = document.getElementById('license').value;
+            const res = await fetch(`${API_URL}/activate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, license_key })
+            });
+            if (res.ok) {
+                currentLicense = license_key;
+                document.getElementById('activation-area').classList.add('hidden');
+                document.getElementById('dashboard').classList.remove('hidden');
+                document.getElementById('auth-status').innerText = 'Active License';
+                loadData();
+            } else {
+                alert('Activation failed');
+            }
+        }
+
+        async function loadData() {
+            const headers = { 'x-license-key': currentLicense };
+            
+            const contactsRes = await fetch(`${API_URL}/contacts`, { headers });
+            const contacts = await contactsRes.json();
+            document.getElementById('contact-list').innerHTML = contacts.map(c => 
+                `<li class="py-2">${c.first_name} ${c.last_name} - ${c.company}</li>`
+            ).join('');
+
+            const dealsRes = await fetch(`${API_URL}/deals`, { headers });
+            const deals = await dealsRes.json();
+            document.getElementById('deal-list').innerHTML = deals.map(d => 
+                `<li class="py-2">${d.title} - <span class="font-bold">$${d.amount}</span> [${d.stage}]</li>`
+            ).join('');
+        }
+
+        function showContactModal() {
+            document.getElementById('modal-title').innerText = 'Add Contact';
+            document.getElementById('modal-body').innerHTML = `
+                <input id="fn" placeholder="First Name" class="border p-2 w-full rounded">
+                <input id="ln" placeholder="Last Name" class="border p-2 w-full rounded">
+                <input id="em" placeholder="Email" class="border p-2 w-full rounded">
+                <input id="co" placeholder="Company" class="border p-2 w-full rounded">
+            `;
+            document.getElementById('modal-save').onclick = saveContact;
+            document.getElementById('modal').classList.remove('hidden');
+        }
+
+        async function saveContact() {
+            const body = {
+                first_name: document.getElementById('fn').value,
+                last_name: document.getElementById('ln').value,
+                email: document.getElementById('em').value,
+                company: document.getElementById('co').value,
+            };
+            await fetch(`${API_URL}/contacts`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-license-key': currentLicense },
+                body: JSON.stringify(body)
+            });
+            closeModal();
+            loadData();
+        }
+
+        function showDealModal() {
+            document.getElementById('modal-title').innerText = 'Add Deal';
+            document.getElementById('modal-body').innerHTML = `
+                <input id="dt" placeholder="Deal Title" class="border p-2 w-full rounded">
+                <input id="da" type="number" placeholder="Amount" class="border p-2 w-full rounded">
+                <select id="ds" class="border p-2 w-full rounded">
+                    <option>Discovery</option>
+                    <option>Proposal</option>
+                    <option>Negotiation</option>
+                    <option>Closed Won</option>
+                </select>
+            `;
+            document.getElementById('modal-save').onclick = saveDeal;
+            document.getElementById('modal').classList.remove('hidden');
+        }
+
+        async function saveDeal() {
+            const body = {
+                title: document.getElementById('dt').value,
+                amount: document.getElementById('da').value,
+                stage: document.getElementById('ds').value,
+                contact_id: 1 // Mock for simplicity
+            };
+            await fetch(`${API_URL}/deals`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-license-key': currentLicense },
+                body: JSON.stringify(body)
+            });
+            closeModal();
+            loadData();
+        }
+
+        function closeModal() { document.getElementById('modal').classList.add('hidden'); }
+    </script>
+</body>
+</html>
